@@ -1,7 +1,6 @@
 
 var createEditor = function() {
     var lsKey = "elevatorCrushCode_v5";
-    var selectedLanguage = "typescript";
     var monacoEditor = null;
     var monacoModel = null;
     var textarea = document.getElementById("code");
@@ -87,12 +86,12 @@ var createEditor = function() {
         return transpiled;
     };
 
-    var getDefaultImplementationForSelectedLanguage = function() {
+    var getDefaultImplementation = function() {
         return $("#default-elev-implementation-ts").text().trim();
     };
 
     var reset = function() {
-        setCodeValue(getDefaultImplementationForSelectedLanguage());
+        setCodeValue(getDefaultImplementation());
     };
 
     var existingCode = localStorage.getItem(lsKey);
@@ -160,7 +159,7 @@ var createEditor = function() {
 
             monacoEditor = monaco.editor.create(editorElement, {
                 value: getCodeValue(),
-                language: selectedLanguage,
+                language: "typescript",
                 theme: "vs-dark",
                 automaticLayout: true,
                 fontSize: 14,
@@ -169,7 +168,7 @@ var createEditor = function() {
                 minimap: { enabled: false }
             });
             monacoModel = monacoEditor.getModel();
-            monaco.editor.setModelLanguage(monacoModel, selectedLanguage);
+            monaco.editor.setModelLanguage(monacoModel, "typescript");
             monacoEditor.onDidChangeModelContent(function() {
                 autoSaver();
             });
