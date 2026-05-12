@@ -14,6 +14,7 @@ var createEditor = function() {
         "    checkDestinationQueue(): void;",
         "    goToFloor(floorNum: number, forceNow?: boolean): void;",
         "    stop(): void;",
+        "    getFirstPressedFloor(): number;",
         "    currentFloor(): number;",
         "    goingUpIndicator(): boolean;",
         "    goingUpIndicator(value: boolean): Elevator;",
@@ -29,9 +30,19 @@ var createEditor = function() {
         "    on(event: \"stopped_at_floor\", callback: (floorNum: number) => void): void;",
         "}",
         "",
+        "interface FloorButtonStates {",
+        "    up: \"\" | \"activated\";",
+        "    down: \"\" | \"activated\";",
+        "}",
+        "",
         "interface Floor {",
+        "    level: number;",
+        "    buttonStates: FloorButtonStates;",
+        "    pressUpButton(): void;",
+        "    pressDownButton(): void;",
         "    floorNum(): number;",
-        "    on(event: \"up_button_pressed\" | \"down_button_pressed\", callback: () => void): void;",
+        "    on(event: \"up_button_pressed\" | \"down_button_pressed\", callback: (floor: Floor) => void): void;",
+        "    on(event: \"buttonstate_change\", callback: (buttonStates: FloorButtonStates) => void): void;",
         "}",
         "",
         "interface UserCode {",
@@ -75,7 +86,7 @@ var createEditor = function() {
 
         var transpiled = window.ts.transpileModule(sourceForTranspile, {
             compilerOptions: {
-                target: window.ts.ScriptTarget.ES5,
+                target: window.ts.ScriptTarget.ES2016,
                 module: window.ts.ModuleKind.None,
                 noImplicitUseStrict: true
             }
@@ -146,7 +157,7 @@ var createEditor = function() {
         });
         window.require(["vs/editor/editor.main"], function() {
             monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-                target: monaco.languages.typescript.ScriptTarget.ES5,
+                target: monaco.languages.typescript.ScriptTarget.ES2016,
                 module: monaco.languages.typescript.ModuleKind.None,
                 allowNonTsExtensions: true,
                 noEmitOnError: false
