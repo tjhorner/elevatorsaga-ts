@@ -1,91 +1,191 @@
 
 var createEditor = function() {
     var lsKey = "elevatorCrushCode_v5";
+    var selectedLanguage = "typescript";
+    var monacoEditor = null;
+    var monacoModel = null;
+    var textarea = document.getElementById("code");
+    var editorElement = document.getElementById("code_editor");
+    var elevatorSagaTypeDefinitions = [
+        "type Direction = \"up\" | \"down\" | \"stopped\";",
+        "type MovingDirection = \"up\" | \"down\";",
+        "",
+        "interface Elevator {",
+        "    destinationQueue: number[];",
+        "    checkDestinationQueue(): void;",
+        "    goToFloor(floorNum: number, forceNow?: boolean): void;",
+        "    stop(): void;",
+        "    currentFloor(): number;",
+        "    goingUpIndicator(): boolean;",
+        "    goingUpIndicator(value: boolean): Elevator;",
+        "    goingDownIndicator(): boolean;",
+        "    goingDownIndicator(value: boolean): Elevator;",
+        "    maxPassengerCount(): number;",
+        "    loadFactor(): number;",
+        "    destinationDirection(): Direction;",
+        "    getPressedFloors(): number[];",
+        "    on(event: \"idle\", callback: () => void): void;",
+        "    on(event: \"floor_button_pressed\", callback: (floorNum: number) => void): void;",
+        "    on(event: \"passing_floor\", callback: (floorNum: number, direction: MovingDirection) => void): void;",
+        "    on(event: \"stopped_at_floor\", callback: (floorNum: number) => void): void;",
+        "}",
+        "",
+        "interface Floor {",
+        "    floorNum(): number;",
+        "    on(event: \"up_button_pressed\" | \"down_button_pressed\", callback: () => void): void;",
+        "}",
+        "",
+        "interface UserCode {",
+        "    init(elevators: Elevator[], floors: Floor[]): void;",
+        "    update(dt: number, elevators: Elevator[], floors: Floor[]): void;",
+        "}",
+        "",
+        "declare const _: any;"
+    ].join("\n");
 
-    var cm = CodeMirror.fromTextArea(document.getElementById("code"), {
-        lineNumbers: true,
-        indentUnit: 4,
-        indentWithTabs: false,
-        theme: "solarized light",
-        mode: "javascript",
-        autoCloseBrackets: true,
-        extraKeys: {
-            // the following Tab key mapping is from http://codemirror.net/doc/manual.html#keymaps
-            Tab: function(cm) {
-                var spaces = new Array(cm.getOption("indentUnit") + 1).join(" ");
-                cm.replaceSelection(spaces);
+    var returnObj = riot.observable({});
+
+    var getCodeValue = function() {
+        return monacoEditor ? monacoEditor.getValue() : (textarea.value || "");
+    };
+
+    var setCodeValue = function(code) {
+        if(monacoEditor) {
+            monacoEditor.setValue(code);
+        } else {
+            textarea.value = code;
+        }
+    };
+
+    var focusEditor = function() {
+        if(monacoEditor) {
+            monacoEditor.focus();
+        }
+    };
+
+    var transpileTypeScript = function(code) {
+        if(!window.ts || !window.ts.transpileModule) {
+            throw new Error("TypeScript compiler failed to load");
+        }
+        var trimmedCode = code.trim();
+        var sourceForTranspile = trimmedCode;
+
+        if(trimmedCode.substr(0, 1) === "{" && trimmedCode.substr(-1, 1) === "}") {
+            sourceForTranspile = "(" + trimmedCode + ")";
+        }
+
+        var transpiled = window.ts.transpileModule(sourceForTranspile, {
+            compilerOptions: {
+                target: window.ts.ScriptTarget.ES5,
+                module: window.ts.ModuleKind.None,
+                noImplicitUseStrict: true
             }
-        }
-    });
+        }).outputText;
 
-    // reindent on paste (adapted from https://github.com/ahuth/brackets-paste-and-indent/blob/master/main.js)
-    cm.on("change", function(codeMirror, change) {
-        if(change.origin !== "paste") {
-            return;
-        }
+        transpiled = transpiled.replace(/^\s*["']use strict["'];?\s*/i, "");
+        transpiled = transpiled.replace(/;\s*$/, "");
+        return transpiled;
+    };
 
-        var lineFrom = change.from.line;
-        var lineTo = change.from.line + change.text.length;
-
-        function reindentLines(codeMirror, lineFrom, lineTo) {
-            codeMirror.operation(function() {
-                codeMirror.eachLine(lineFrom, lineTo, function(lineHandle) {
-                    codeMirror.indentLine(lineHandle.lineNo(), "smart");
-                });
-            });
-        }
-
-        reindentLines(codeMirror, lineFrom, lineTo);
-    });
+    var getDefaultImplementationForSelectedLanguage = function() {
+        return $("#default-elev-implementation-ts").text().trim();
+    };
 
     var reset = function() {
-        cm.setValue($("#default-elev-implementation").text().trim());
-    };
-    var saveCode = function() {
-        localStorage.setItem(lsKey, cm.getValue());
-        $("#save_message").text("Code saved " + new Date().toTimeString());
-        returnObj.trigger("change");
+        setCodeValue(getDefaultImplementationForSelectedLanguage());
     };
 
     var existingCode = localStorage.getItem(lsKey);
     if(existingCode) {
-        cm.setValue(existingCode);
+        setCodeValue(existingCode);
     } else {
         reset();
     }
 
+    var saveCode = function() {
+        localStorage.setItem(lsKey, getCodeValue());
+        $("#save_message").text("Code saved " + new Date().toTimeString());
+        returnObj.trigger("change");
+    };
+
+    var autoSaver = _.debounce(saveCode, 1000);
+
     $("#button_save").click(function() {
         saveCode();
-        cm.focus();
+        focusEditor();
     });
 
     $("#button_reset").click(function() {
         if(confirm("Do you really want to reset to the default implementation?")) {
-            localStorage.setItem("develevateBackupCode", cm.getValue());
+            localStorage.setItem("develevateBackupCode", getCodeValue());
             reset();
+            autoSaver();
         }
-        cm.focus();
+        focusEditor();
     });
 
     $("#button_resetundo").click(function() {
         if(confirm("Do you want to bring back the code as before the last reset?")) {
-            cm.setValue(localStorage.getItem("develevateBackupCode") || "");
+            setCodeValue(localStorage.getItem("develevateBackupCode") || "");
+            autoSaver();
         }
-        cm.focus();
+        focusEditor();
     });
 
-    var returnObj = riot.observable({});
-    var autoSaver = _.debounce(saveCode, 1000);
-    cm.on("change", function() {
-        autoSaver();
-    });
+    if(window.require && editorElement) {
+        window.MonacoEnvironment = {
+            getWorkerUrl: function() {
+                var workerScript = "self.MonacoEnvironment = { baseUrl: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/' };" +
+                    "importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js');";
+                return "data:text/javascript;charset=utf-8," + encodeURIComponent(workerScript);
+            }
+        };
+        window.require.config({
+            paths: {
+                vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs"
+            }
+        });
+        window.require(["vs/editor/editor.main"], function() {
+            monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+                target: monaco.languages.typescript.ScriptTarget.ES5,
+                module: monaco.languages.typescript.ModuleKind.None,
+                allowNonTsExtensions: true,
+                noEmitOnError: false
+            });
+            monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+                noSemanticValidation: false,
+                noSyntaxValidation: false
+            });
+            monaco.languages.typescript.typescriptDefaults.addExtraLib(elevatorSagaTypeDefinitions, "ts:elevatorsaga-api.d.ts");
+
+            monacoEditor = monaco.editor.create(editorElement, {
+                value: getCodeValue(),
+                language: selectedLanguage,
+                theme: "vs-dark",
+                automaticLayout: true,
+                fontSize: 14,
+                tabSize: 4,
+                insertSpaces: true,
+                minimap: { enabled: false }
+            });
+            monacoModel = monacoEditor.getModel();
+            monaco.editor.setModelLanguage(monacoModel, selectedLanguage);
+            monacoEditor.onDidChangeModelContent(function() {
+                autoSaver();
+            });
+            returnObj.trigger("ready");
+        });
+    } else {
+        returnObj.trigger("usercode_error", new Error("Monaco loader did not initialize"));
+    }
 
     returnObj.getCodeObj = function() {
         console.log("Getting code...");
-        var code = cm.getValue();
+        var code = getCodeValue();
+        var runnableCode = transpileTypeScript(code);
         var obj;
         try {
-            obj = getCodeObjFromCode(code);
+            obj = getCodeObjFromCode(runnableCode);
             returnObj.trigger("code_success");
         } catch(e) {
             returnObj.trigger("usercode_error", e);
@@ -94,13 +194,13 @@ var createEditor = function() {
         return obj;
     };
     returnObj.setCode = function(code) {
-        cm.setValue(code);
+        setCodeValue(code);
     };
     returnObj.getCode = function() {
-        return cm.getValue();
+        return getCodeValue();
     }
     returnObj.setDevTestCode = function() {
-        cm.setValue($("#devtest-elev-implementation").text().trim());
+        setCodeValue($("#devtest-elev-implementation").text().trim());
     }
 
     $("#button_apply").click(function() {

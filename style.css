@@ -157,11 +157,15 @@ button.right {
     padding-top: 10px;
 }
 
-.CodeMirror {
+#code {
+    display: none;
+}
+
+#code_editor {
     font: 14px Consolas, Monaco, monospace;
     width: 1220px;
     margin: 10px auto;
-    height: 320px;
+    height: 640px;
 }
 
 .world {
